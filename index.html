@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業英文互動學習App</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif; /* 使用乾淨的標準字體 */
+            background-color: #f7f9fb; /* 淺灰色背景 */
+        }
+        .card-container, .quiz-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            padding: 24px;
+            margin-top: 20px;
+        }
+        /* 專業風格的按鈕效果 */
+        .vibe-button {
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .vibe-button:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .vibe-button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .quiz-option {
+            cursor: pointer;
+            text-align: left;
+            padding: 12px 20px;
+            margin: 8px 0;
+            border-radius: 8px;
+            font-weight: 500;
+            border: 1px solid #e5e7eb;
+            transition: background-color 0.2s, border-color 0.2s;
+            display: flex; /* 讓選項和翻譯在同一行 */
+            justify-content: space-between;
+            align-items: center;
+        }
+        .quiz-option:hover:not(.correct):not(.incorrect) {
+            background-color: #f3f4f6;
+            border-color: #d1d5db;
+        }
+        .correct {
+            background-color: #d1fae5; /* 淺綠色 */
+            color: #065f46;
+            border-color: #10b981;
+        }
+        .incorrect {
+            background-color: #fee2e2; /* 淺紅色 */
+            color: #991b1b;
+            border-color: #f87171;
+        }
+        .active-tab {
+            background-color: #3b82f6 !important; /* 主藍色 */
+            color: white !important;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* 單詞懸停樣式 */
+        .context-word {
+            display: inline-block; /* 確保能正確懸停 */
+            position: relative;
+            cursor: help; /* 顯示幫助游標 */
+            border-bottom: 1px dashed #9ca3af; /* 輕微底線提示可互動 */
+        }
+        .context-word:hover {
+            background-color: #fef08a; /* 懸停時強調顏色 */
+        }
+        /* Tooltip 樣式 (JS會動態創建) */
+        .word-tooltip {
+            position: absolute;
+            z-index: 50;
+            background-color: #1f2937; /* 深灰背景 */
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            font-size: 0.8rem;
+            pointer-events: none; /* 允許滑鼠穿透 */
+            transition: opacity 0.2s;
+            transform: translate(-50%, -10px); /* 輕微向上移動 */
+        }
+        .word-tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #1f2937 transparent transparent transparent;
+        }
+        .quiz-translation-box {
+            transition: max-height 0.5s ease-in-out, padding 0.5s ease-in-out;
+            overflow: hidden;
+            max-height: 0;
+            padding: 0 1rem;
+        }
+        .quiz-translation-box.show {
+            max-height: 200px; /* 根據內容調整 */
+            padding: 1rem;
+        }
+        .option-english {
+            font-weight: 600;
+        }
+        .option-chinese {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body class="p-4 flex flex-col items-center min-h-screen">
+
+    <!-- Header 頂部標題和模式切換 -->
+    <header class="text-center mb-6 p-4 bg-white border-b border-gray-200 w-full max-w-xl">
+        <h1 class="text-3xl font-bold text-gray-800">TOEIC 短語學習模組 (Day 1-3)</h1>
+        <p class="mt-1 text-sm text-gray-500">共 150 個詞彙卡，強化記憶與情境應用</p>
+    </header>
+
+    <!-- 模式切換標籤 -->
+    <div class="flex bg-gray-100 p-1 rounded-full shadow-inner mb-8 w-full max-w-sm">
+        <button id="card-mode-btn" class="flex-1 py-2 px-4 rounded-full text-sm font-bold transition-all active-tab">
+            卡片學習
+        </button>
+        <button id="quiz-mode-btn" class="flex-1 py-2 px-4 rounded-full text-sm font-bold transition-all text-gray-600">
+            情境測驗
+        </button>
+    </div>
+
+    <!-- 學習卡片模式 -->
+    <section id="card-mode" class="card-container flex flex-col items-center">
+        <div id="card-display" class="w-full text-center mb-6">
+            
+            <!-- 英文短語 + 核心翻譯 (主視覺區) -->
+            <div class="p-6 bg-indigo-50 border-b-4 border-indigo-500 rounded-t-lg mb-4">
+                 <p id="card-english" class="text-4xl font-extrabold text-indigo-700">Loading...</p>
+                 <p id="card-chinese-core" class="text-xl font-bold text-indigo-600 mt-1">載入中...</p>
+            </div>
+           
+            <!-- 情境例句/翻譯 (Combined Block) -->
+            <div id="context-combined-box" class="p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-lg text-left mb-4">
+                <!-- 英文情境 -->
+                <p class="text-lg font-bold text-yellow-700 mb-2 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    情境例句 (Contextual Example)
+                </p>
+                <!-- 這裡的 innerHTML 會被 renderCard 替換為帶有 span 的單字 -->
+                <p id="card-english-context" class="text-base text-gray-700 italic border-b border-yellow-200 pb-2 mb-2">...</p>
+                
+                <!-- 中文翻譯 -->
+                <p class="text-lg font-bold text-gray-600 mb-1 flex items-center mt-3">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0013.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    中文翻譯 (Translation)
+                </p>
+                <p id="card-chinese-context" class="text-base text-gray-700">...</p>
+            </div>
+            
+            <!-- 記憶點/故事與補充用法 (Tip + Supplement Combined Block) -->
+            <div id="tip-supplement-box" class="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg text-left mb-6">
+                <!-- 記憶點 -->
+                <p class="text-lg font-bold text-blue-700 mb-2 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.01 12.01 0 002 15.428a12.04 12.04 0 0015.688 3.515 12.01 12.01 0 003.515-15.688z"></path></svg>
+                    記憶點/故事 (Memory Tip)
+                </p>
+                <p id="card-tip" class="text-base text-gray-700 border-b border-blue-200 pb-2 mb-2">...</p>
+                
+                <!-- 補充用法 -->
+                <div id="card-supplement-detail" class="mt-3">
+                    <p class="text-lg font-bold text-gray-700 mb-1">💡 補充用法</p>
+                    <p id="card-supplement" class="text-base text-gray-700">...</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 卡片操作按鈕 (新增跳轉按鈕) -->
+        <div class="flex space-x-2 sm:space-x-4 w-full justify-center mt-4">
+            <button id="card-prev-btn" class="vibe-button bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 sm:px-6 rounded-lg text-sm transition duration-150">
+                &larr; 上一個
+            </button>
+            <button id="card-jump-btn" class="vibe-button bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 sm:px-6 rounded-lg text-sm transition duration-150">
+                跳轉到...
+            </button>
+            <button id="card-next-btn" class="vibe-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 sm:px-6 rounded-lg text-sm transition duration-150">
+                下一個 &rarr;
+            </button>
+        </div>
+
+        <div id="card-progress" class="mt-4 text-sm font-semibold text-gray-500"></div>
+    </section>
+    
+    <!-- 自定義跳轉輸入視窗 (取代 prompt) -->
+    <div id="jump-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-xs transform scale-100">
+            <h3 class="text-xl font-bold mb-4 text-gray-800">跳轉到詞彙卡</h3>
+            <p id="jump-modal-message" class="text-sm text-gray-600 mb-3">請輸入編號 (1 到 150):</p>
+            <input type="number" id="jump-input" class="w-full p-2 border border-gray-300 rounded-lg text-lg mb-4 focus:ring-blue-500 focus:border-blue-500" min="1" max="150">
+            <div class="flex justify-end space-x-3">
+                <button id="jump-cancel" class="py-2 px-4 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">取消</button>
+                <button id="jump-confirm" class="py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">確定跳轉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 情境測驗模式 -->
+    <section id="quiz-mode" class="quiz-container flex flex-col items-center hidden">
+        
+        <!-- 測驗設定區塊 (新增) -->
+        <div id="quiz-settings" class="w-full text-center mb-6">
+            <h2 class="text-xl font-bold text-gray-700 mb-4 border-b pb-2 w-full">設定測驗</h2>
+            <p class="text-lg font-bold text-gray-700 mb-3">請選擇測驗題數：</p>
+            <div id="quiz-length-options" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6 max-w-md mx-auto">
+                <button data-length="20" class="quiz-length-btn py-2 px-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-blue-100 transition text-sm">20 題</button>
+                <button data-length="50" class="quiz-length-btn py-2 px-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-blue-100 transition text-sm">50 題</button>
+                <button data-length="100" class="quiz-length-btn py-2 px-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-blue-100 transition text-sm">100 題</button>
+                <button data-length="150" class="quiz-length-btn py-2 px-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-blue-100 transition text-sm">150 題</button>
+            </div>
+            <button id="start-quiz-btn" class="vibe-button bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg transition duration-150 mt-4 disabled:opacity-50" disabled>
+                開始測驗
+            </button>
+        </div>
+
+        <!-- 測驗內容區塊 (預設隱藏) -->
+        <div id="quiz-content" class="hidden w-full">
+            <div class="w-full text-center mb-6">
+                <h2 id="quiz-progress" class="text-xl font-bold text-gray-600 mb-4 border-b pb-2 w-full">測驗題 1 / 20</h2>
+                
+                <!-- 題目區塊 -->
+                <div class="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg text-left mb-6">
+                    <p class="text-lg font-bold text-blue-700 mb-2 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c0-3.379 2.45-6.108 5.5-6.108 3.048 0 5.5 2.73 5.5 6.108 0 3.378-2.452 6.108-5.5 6.108-3.05 0-5.5-2.73-5.5-6.108zM14 17h.01"></path></svg>
+                        情境選擇題 (Scenario-Based Question)
+                    </p>
+                    <p id="quiz-scenario" class="text-base text-gray-700">請根據情境例句，選出最適合的英文短語：</p>
+                </div>
+
+                <!-- 選項區塊 -->
+                <div id="quiz-options-container" class="space-y-2">
+                    <!-- 選項將由 JavaScript 渲染在這裡 -->
+                </div>
+                
+                <!-- 提示與結果 -->
+                <div id="quiz-feedback" class="mt-6 p-3 rounded-lg text-left text-base font-medium hidden"></div>
+                
+                <!-- 情境翻譯 (新增區塊，預設隱藏) -->
+                <div id="quiz-translation-box" class="quiz-translation-box bg-gray-50 border border-gray-200 rounded-lg text-left mt-4">
+                    <p class="text-sm font-bold text-gray-700 mb-1 flex items-center">
+                        <svg class="w-4 h-4 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        情境翻譯與學習
+                    </p>
+                    <!-- 英文情境 (帶懸停翻譯) -->
+                    <p id="quiz-scenario-english-result" class="text-sm text-gray-700 italic border-b border-gray-200 pb-1 mb-1"></p>
+                    <!-- 中文翻譯 -->
+                    <p id="quiz-scenario-chinese-result" class="text-sm text-gray-600 mt-2"></p>
+                </div>
+            </div>
+
+            <!-- 測驗操作按鈕 -->
+            <button id="quiz-next-btn" class="vibe-button bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg transition duration-150 mt-4 disabled:opacity-50" disabled>
+                下一題 →
+            </button>
+        </div>
+    </section>
+
+    <!-- JavaScript 邏輯 -->
+    <script>
+        // 詞彙資料 (包含 Day 1, Day 2, Day 3 的所有短語)
+        const vocabData = [
+            // --- Day 1 (1-50) ---
+            { english: "a job seeker", chinese: "求職者", supplement: "seek v. 尋找", supplementExample: "He decided to seek a new career path after the layoff.", supplementExampleChinese: "他在被解僱後決定尋求新的職涯道路。", englishContext: "The company is actively looking for qualified job seekers to fill the new positions.", chineseContext: "這間公司正積極尋找合格的求職者來填補新職位。", tip: "🔎 求職者就像尋寶的偵探（seek），尋找（seek）一份好工作。" },
+            { english: "an important client", chinese: "重要客戶", supplement: "prioritize v. 優先處理", supplementExample: "You must prioritize your health and well-being over work.", supplementExampleChinese: "你必須把健康和幸福感置於工作之上。", englishContext: "We must prioritize the needs of our important client, Mr. Chen, as he represents 30% of our revenue.", chineseContext: "我們必須優先處理我們的這位重要客戶陳先生的需求，因為他佔了我們營收的 30%。", tip: "👑 Client 就像是公司的國王或貴賓，我們要優先（prioritize）服務他。" },
+            { english: "a fax machine", chinese: "傳真機", supplement: "send v. 發送", supplementExample: "Please send the file as an attachment to my email.", supplementExampleChinese: "請把這個檔案當作附件發送到我的電子郵件。", englishContext: "Please use the fax machine in the main office to send the signed contract immediately.", chineseContext: "請使用主要辦公室的傳真機，立即發送這份已簽署的合約。", tip: "📠 Fax 聽起來像 'fast'（快速），是快速傳送（send）文件（如 contract）的機器。" },
+            { english: "a business card", chinese: "一張名片", supplement: "exchange v. 交換", supplementExample: "The tourists wanted to exchange their currency for Yen.", supplementExampleChinese: "遊客想把他們的貨幣兌換成日圓。", englishContext: "Don't forget to exchange business cards at the networking event for future contact.", chineseContext: "別忘了在社交活動（networking event）上交換名片，以便日後聯繫。", tip: "🏷️ Card 就是卡片，商業活動（business）用的自我介紹卡就是名片。" },
+            { english: "a lunch break", chinese: "午休", supplement: "", supplementExample: "", supplementExampleChinese: "", englishContext: "Employees usually take their lunch break between 12:00 PM and 1:00 PM.", chineseContext: "員工通常會在中午 12 點到下午 1 點之間休息吃午餐。", tip: "🍔 Lunch 是午餐，Break 是休息，吃飯的休息時間就是午休。" },
+            { english: "a commercial break", chinese: "廣告休息時間", supplement: "commercial adj.商業的 n.商業廣告", supplementExample: "The ad agency designs commercials for various industries.", supplementExampleChinese: "這間廣告公司為不同產業設計商業廣告。", englishContext: "The live broadcast went into a commercial break just before the final announcement.", chineseContext: "現場直播在最終公告前進入了廣告時段。", tip: "📺 Commercial 是商業廣告，Break 是中間的休息，廣告休息就是 Commercial Break。" },
+            { english: "a completed form", chinese: "一份填完的表格", supplement: "complete adj.完整的 v.完成", supplementExample: "Please complete the survey before midnight.", supplementExampleChinese: "請在午夜前完成這份問卷調查。", englishContext: "Ensure you submit the completed form along with all necessary identification documents.", chineseContext: "請確保您提交填寫完畢的表格，並附上所有必要的身份證明文件。", tip: "✅ Completed 形容詞是「完成的」，指表格（form）已經填寫完整，可以提交（submit）了。" },
+            { english: "a keynote speaker", chinese: "主講人", supplement: "renowned adj. 著名的", supplementExample: "She is a renowned artist in the contemporary scene.", supplementExampleChinese: "她是當代藝術界一位著名的藝術家。", englishContext: "The conference committee invited a renowned economist to be the keynote speaker this year.", chineseContext: "會議委員會邀請了一位著名的經濟學家擔任今年的主講人。", tip: "🎤 Keynote 指「主要的重點」，Speaker 是講話的人，就是發表主題演講的「核心人物」。" },
+            { english: "an upcoming event", chinese: "即將到來的活動", supplement: "annual adj. 每年的", supplementExample: "The company holds an annual review meeting every December.", supplementExampleChinese: "這間公司在每年的十二月都會舉行年度審查會議。", englishContext: "Please check the bulletin board for details on the upcoming event, the annual sales conference.", chineseContext: "請查看佈告欄，以了解即將到來的年度銷售會議的詳細資訊。", tip: "🔜 Upcoming 意思是「要上來了/要來了」，指很快就會發生的活動（event）。" },
+            { english: "a local election", chinese: "地方選舉", supplement: "elect v. 選舉", supplementExample: "The public will elect a new mayor next month.", supplementExampleChinese: "公眾將在下個月選舉新市長。", englishContext: "Voter turnout for the local election was unexpectedly high this year.", chineseContext: "今年地方選舉的選民投票率出乎意料地高。", tip: "🗳️ Local 是指「本地的/區域的」，Election 是選舉，選村長或區長的選舉就是地方選舉。" },
+            { english: "a sports competition", chinese: "體育比賽", supplement: "compete v. 競爭", englishContext: "The sports competition will be fierce, requiring intense training.", chineseContext: "這場體育比賽將會非常激烈，需要密集的訓練。", tip: "🏃 Sports 是運動，Competition 是競賽，就是體育賽事。" },
+            { english: "a popular course", chinese: "熱門課程", supplement: "popular adj. 受歡迎的", englishContext: "Due to high demand, the popular course on data science has a long waiting list.", chineseContext: "由於需求量大，這門受歡迎的數據科學課程有很長的等候名單。", tip: "📚 Popular 是流行、受歡迎，course 是課程。" },
+            { english: "an ordinary street", chinese: "一條普通的街道", supplement: "ordinary adj. 普通的", englishContext: "The suspect was last seen walking down an ordinary street near the market.", chineseContext: "嫌疑人最後被看到是在靠近市場的一條普通街道上行走。", tip: "🚶 Ordinary 是平凡，street 是街道。" },
+            { english: "a thrilling adventure", chinese: "刺激的冒險", supplement: "thrill v. 使...激動", englishContext: "Climbing Mount Everest is often described as a thrilling adventure.", chineseContext: "攀登聖母峰通常被形容為一場刺激的冒險。", tip: "⛰️ Thrilling 是令人興奮的，adventure 是冒險。" },
+            { english: "a coupon code", chinese: "優惠券代碼", supplement: "code n. 代碼", englishContext: "Enter the coupon code at checkout to receive your 15% discount.", chineseContext: "請在結帳時輸入優惠券代碼以獲得您的 15% 折扣。", tip: "🎫 Coupon 是優惠券，Code 是密碼。" },
+            { english: "a discount coupon", chinese: "折扣優惠券", supplement: "discount n. 折扣", englishContext: "I saved money by using a discount coupon for the new electronics.", chineseContext: "我使用了一張新電子產品的折扣優惠券省下了錢。", tip: "🏷️ Discount 是打折，coupon 是券。" },
+            { english: "a press release", chinese: "新聞稿", supplement: "release v. 發佈", englishContext: "The marketing department issued a press release to announce the merger.", chineseContext: "行銷部門發布了一份新聞稿來宣布這次的合併案。", tip: "📰 Press 是媒體，release 是發佈，發給媒體的稿子就是新聞稿。" },
+            { english: "a class reunion", chinese: "同學會", supplement: "reunion n. 重聚", englishContext: "A class reunion is scheduled for alumni who graduated a decade ago.", chineseContext: "為十年前畢業的校友安排了一場同學會。", tip: "🧑‍🤝‍🧑 Class 是班級，reunion 是重聚。" },
+            { english: "a weather forecast", chinese: "天氣預報", supplement: "scheduled adj.預定的", supplementExample: "The flight is scheduled to depart at 9:00 AM.", supplementExampleChinese: "這班飛機預定在早上九點起飛。", englishContext: "According to the weather forecast, the outdoor concert should be held as scheduled without rain.", chineseContext: "根據天氣預報，這場戶外音樂會應該可以如期舉行，不會下雨。", tip: "☀️ Weather 是天氣，Forecast 是「預測」，預測天氣就是天氣預報。" },
+            { english: "a smooth flight", chinese: "平穩的飛行/航程", supplement: "smooth adj. 平穩的", englishContext: "Despite the turbulence, the pilot managed to maintain a smooth flight.", chineseContext: "儘管有亂流，飛行員還是設法維持了平穩的航程。", tip: "✈️ Smooth 是順暢，flight 是飛行。" },
+            { english: "a company outing", chinese: "公司郊遊", supplement: "outing n. 郊遊", englishContext: "The annual company outing will be a day trip to the beach next month.", chineseContext: "一年一度的公司郊遊將是下個月的海灘一日遊。", tip: "🏞️ Company 是公司，outing 是戶外活動。" },
+            { english: "a company picnic", chinese: "公司野餐", supplement: "picnic n. 野餐", englishContext: "We postponed the company picnic due to the unexpected rain.", chineseContext: "由於突如其來的大雨，我們推遲了公司野餐。", tip: "🧺 Picnic 是野餐。" },
+            { english: "an admission ticket", chinese: "入場券", supplement: "admit v. 允許(進入)", englishContext: "You must present an admission ticket to enter the gallery.", chineseContext: "您必須出示入場券才能進入畫廊。", tip: "🎟️ Admission 是允許進入，ticket 是票券。" },
+            { english: "a seating chart", chinese: "座位表", supplement: "chart n. 圖表", englishContext: "Please refer to the seating chart to find your assigned place.", chineseContext: "請參考座位表以找到您被分配的位置。", tip: "🪑 Seating 是座位安排，chart 是表格。" },
+            { english: "a brief outline", chinese: "簡要概述", supplement: "brief adj. 簡短的", englishContext: "The manager provided a brief outline of the project goals.", chineseContext: "經理提供了項目目標的簡要概述。", tip: "📜 Brief 是短暫，outline 是大綱。" },
+            { english: "a stationery store", chinese: "文具店", supplement: "stationery n. 文具", englishContext: "I need to go to the stationery store to buy new pens and notebooks.", chineseContext: "我需要去文具店買新的筆和筆記本。", tip: "✏️ Stationery 是文具，store 是商店。" },
+            { english: "a cash reward", chinese: "現金回饋", supplement: "exceed v. 超過", supplementExample: "The cost must not exceed the budget.", supplementExampleChinese: "費用不得超過預算。", englishContext: "Employees who exceed their quarterly sales targets will receive a substantial cash reward.", chineseContext: "超出季度銷售目標的員工將獲得豐厚的現金獎勵。", tip: "💰 Cash 是現金，Reward 是獎勵，就是直接發錢（cash）給你當獎勵。" },
+            { english: "a magazine editor", chinese: "雜誌編輯", supplement: "edit v. 編輯", englishContext: "The magazine editor reviewed the article for factual errors.", chineseContext: "雜誌編輯審閱了這篇文章以檢查事實錯誤。", tip: "📝 Magazine 是雜誌，editor 是編輯。" },
+            { english: "a leading company", chinese: "具領導地位的公司", supplement: "lead v. 領導", englishContext: "Our goal is to become the leading company in renewable energy technology.", chineseContext: "我們的目標是成為再生能源技術領域的領導公司。", tip: "🥇 Leading 是領先的，company 是公司。" },
+            { english: "a networking event", chinese: "社交活動", supplement: "network n. 網路 v. 建立人脈", englishContext: "Attending a networking event is crucial for building professional relationships.", chineseContext: "參加社交活動對於建立專業關係至關重要。", tip: "🤝 Networking 是建立人脈，event 是活動。" },
+            { english: "an informal meeting", chinese: "非正式會議", supplement: "formal adj. 正式的", englishContext: "We held an an informal meeting over coffee to discuss the proposal.", chineseContext: "我們在喝咖啡時舉行了一次非正式會議來討論提案。", tip: "☕ Informal 是非正式的，meeting 是會議。" },
+            { english: "a return policy", chinese: "退貨政策", supplement: "return v. 退回", englishContext: "Always check the store's return policy before making a large purchase.", chineseContext: "在大筆採購前，務必檢查商店的退貨政策。", tip: "📦 Return 是退回，policy 是政策。" },
+            { english: "a rental car", chinese: "一輛出租汽車", supplement: "rent v./n. 租用/租金", englishContext: "We booked a rental car for our week-long trip to the coast.", chineseContext: "我們為期一週的海邊旅行預訂了一輛出租汽車。", tip: "🚗 Rental 是租賃的，car 是車。" },
+            { english: "a monthly rent", chinese: "月租費", supplement: "monthly adj./adv. 每月的", englishContext: "The apartment's monthly rent includes utilities and maintenance fees.", chineseContext: "這間公寓的月租費包含水電費和維護費。", tip: "💵 Monthly 是每月，rent 是租金。" },
+            { english: "a lunch buffet", chinese: "自助午餐", supplement: "buffet n. 自助餐", englishContext: "The conference provided a delicious lunch buffet with many options.", chineseContext: "會議提供了一個有許多選擇的美味自助午餐。", tip: "🍽️ Lunch 是午餐，buffet 是吃到飽。" },
+            { english: "an accounting firm", chinese: "會計師事務所", supplement: "accounting n. 會計", englishContext: "She works as an accountant for a large accounting firm downtown.", chineseContext: "她在市中心一間大型會計師事務所擔任會計師。", tip: "🧮 Accounting 是會計，firm 是公司/事務所。" },
+            { english: "a public hearing", chinese: "公開聽證會", supplement: "public adj. 公眾的", englishContext: "Citizens attended the public hearing to voice their concerns about the new tax.", chineseContext: "公民們參加了公開聽證會，對新稅法表達他們的擔憂。", tip: "🗣️ Public 是公開的，hearing 是聽取意見。" },
+            { english: "a book signing", chinese: "簽書會", supplement: "signing n. 簽名活動", englishContext: "The famous author held a book signing session at the local bookstore.", chineseContext: "這位著名作家在當地的書店舉行了一場簽書會。", tip: "✍️ Book 是書，signing 是簽名。" },
+            { english: "a parking permit", chinese: "停車許可證", supplement: "permit n./v. 許可證/准許", englishContext: "You must display your parking permit clearly on the dashboard.", chineseContext: "您必須將您的停車許可證清楚地展示在儀表板上。", tip: "🅿️ Parking 是停車，permit 是允許證。" },
+            { english: "a parking pass", chinese: "停車證", supplement: "pass n. 通行證", englishContext: "Visitors need a temporary parking pass to use the staff lot.", chineseContext: "訪客需要一張臨時停車證才能使用員工停車場。", tip: "🎫 Parking 是停車，pass 是通行證。" },
+            { english: "a guided tour", chinese: "有導覽的遊程", supplement: "guide v./n. 引導/導遊", englishContext: "We highly recommend the guided tour to learn the historical background of the castle.", chineseContext: "我們強烈推薦參加導覽遊程，以了解這座城堡的歷史背景。", tip: "🗺️ Guided 是被引導的，tour 是旅行。" },
+            { english: "a full-time job", chinese: "一份全職工作", supplement: "part-time adj. adv.兼職的", supplementExample: "He is only available for part-time work.", supplementExampleChinese: "他只適合兼職工作。", englishContext: "She quit her part-time position to accept a full-time job with full benefits.", chineseContext: "她辭掉了她的兼職工作，接受了一份享有完整福利的全職工作。", tip: "💪 Full-time 指「全時間」，相對於 part-time（兼職），工時較長，通常福利（benefits）也比較完整。" },
+            { english: "a music festival", chinese: "音樂節", supplement: "festival n. 節日", englishContext: "The summer music festival attracts thousands of attendees every year.", chineseContext: "這個夏季音樂節每年吸引數千名參與者。", tip: "🎵 Music 是音樂，festival 是節日。" },
+            { english: "a power outage", chinese: "停電", supplement: "outage n. 中斷", englishContext: "Due to the storm, the city experienced a widespread power outage.", chineseContext: "由於暴風雨，城市經歷了廣泛的停電。", tip: "🔌 Power 是電力，outage 是中斷。" },
+            { english: "a new library branch", chinese: "新的圖書館分館", supplement: "branch n. 樹枝;分公司", englishContext: "The bank is opening a new library branch on the north side of town.", chineseContext: "銀行正在鎮的北側開設一家新的圖書館分館。", tip: "📚 Library 是圖書館，branch 是分支。" },
+            { english: "a decline in sales", chinese: "銷售下滑", supplement: "decline n./v. 減少/婉拒", englishContext: "The CEO expressed concern over the recent decline in sales across all regions.", chineseContext: "執行長對最近所有地區的銷售下滑表示擔憂。", tip: "📉 Decline 是下降、減少。" },
+            { english: "a reduced price", chinese: "降價", supplement: "reduce v. 減少", englishContext: "All clearance items are offered at a reduced price for quick liquidation.", chineseContext: "所有清倉商品都以降價出售，以求快速清算。", tip: "🏷️ Reduced 是被減少的，price 是價格。" },
+            { english: "an invoice for $350", chinese: "350 美元的發票", supplement: "invoice n. 發票", englishContext: "Please pay the invoice for $350 within 30 days of receipt.", chineseContext: "請在收到發票後的 30 天內支付 350 美元。", tip: "🧾 Invoice 是發票，for $350 是針對 350 美元。" },
+            { english: "an electronic alert", chinese: "電子通知", supplement: "alert n./v. 通知/警示", englishContext: "Subscribers receive an electronic alert whenever new content is posted online.", chineseContext: "每當有新內容發布到線上時，訂閱者都會收到電子通知。", tip: "🔔 Electronic 是電子的，alert 是警報/通知。" },
+            { english: "a science lecture", chinese: "科學講座/授課", supplement: "lecture n. 講座", englishContext: "The professor delivered a fascinating science lecture on quantum physics.", chineseContext: "教授發表了一場關於量子物理學的精彩科學講座。", tip: "🔬 Science 是科學，lecture 是演講。" },
+
+            // --- Day 2 (51-100) ---
+            { english: "a recycling bin", chinese: "資源回收桶", supplement: "recycle v. 回收", englishContext: "Please ensure all paper waste is placed in the recycling bin.", chineseContext: "請確保所有廢紙都放入資源回收桶。", tip: "♻️ Recycling 是回收利用，bin 是容器。" },
+            { english: "a computer monitor", chinese: "電腦螢幕", supplement: "monitor v. 監督", englishContext: "Staring at a computer monitor for too long can cause eye strain.", chineseContext: "長時間盯著電腦螢幕會導致眼睛疲勞。", tip: "🖥️ Computer 是電腦，monitor 是監視器/螢幕。" },
+            { english: "a shopping list", chinese: "購物清單", supplement: "list n. 清單", englishContext: "She always checks her shopping list before going to the supermarket.", chineseContext: "她去超市前總會檢查她的購物清單。", tip: "🛒 Shopping 是購物，list 是清單。" },
+            { english: "a glass door", chinese: "一扇玻璃門", supplement: "glass n. 玻璃", englishContext: "Be careful not to walk into the clean glass door.", chineseContext: "小心不要撞到那扇乾淨的玻璃門。", tip: "🚪 Glass 是玻璃，door 是門。" },
+            { english: "a musical instrument", chinese: "一件樂器", supplement: "instrument n. 樂器;儀器", englishContext: "Learning to play a musical instrument requires patience and practice.", chineseContext: "學習彈奏樂器需要耐心和練習。", tip: "🎻 Musical 是音樂的，instrument 是器具。" },
+            { english: "a kitchen stool", chinese: "廚房矮凳", supplement: "stool n. 凳子", englishContext: "The child stood on a kitchen stool to reach the high shelf.", chineseContext: "孩子站在廚房矮凳上，想夠到高架子。", tip: "🪑 Kitchen 是廚房，stool 是沒有靠背的凳子。" },
+            { english: "a hot oven", chinese: "高溫烤箱", supplement: "oven n. 烤箱", englishContext: "Wait for the hot oven to cool down before cleaning the inside.", chineseContext: "清潔內部前，請等高溫烤箱冷卻。", tip: "🔥 Hot 是熱的，oven 是烤箱。" },
+            { english: "an open umbrella", chinese: "一把打開的傘", supplement: "closed adj. 關閉、收起來的", englishContext: "He carried an open umbrella even though it wasn't raining.", chineseContext: "儘管沒有下雨，他還是撐著一把打開的傘。", tip: "☔ Open 是打開的，umbrella 是傘。" },
+            { english: "an outdoor pool", chinese: "室外游泳池", supplement: "outdoor adj. 戶外的", englishContext: "The hotel features both an indoor and an outdoor pool for guests.", chineseContext: "這家飯店為客人提供了室內和室外游泳池。", tip: "🏊 Outdoor 是戶外，pool 是水池。" },
+            { english: "a legal dispute", chinese: "法律糾紛", supplement: "dispute v./n. 爭執", englishContext: "The two companies are currently involved in a legal dispute over patent rights.", chineseContext: "這兩家公司目前因專利權問題陷入法律糾紛。", tip: "⚖️ Legal 是法律的，dispute 是爭論。" },
+            { english: "an electrical outlet", chinese: "電源插座", supplement: "electrical adj. 電力的", englishContext: "Never force a plug into an electrical outlet if it doesn't fit.", chineseContext: "如果插頭不合適，切勿強行插入電源插座。", tip: "🔌 Electrical 是電，outlet 是出風口/插座。" },
+            { english: "a tourist attraction", chinese: "旅遊勝地", supplement: "attract v. 吸引", englishContext: "The ancient temple is the city's main tourist attraction.", chineseContext: "這座古老的寺廟是這個城市主要的旅遊勝地。", tip: "📸 Tourist 是遊客，attraction 是吸引物。" },
+            { english: "an expense report", chinese: "支出報告", supplement: "expense n. 費用", englishContext: "Remember to attach all receipts to your monthly expense report.", chineseContext: "記得將所有收據附在您的每月支出報告上。", tip: "💸 Expense 是支出，report 是報告。" },
+            { english: "an inspiring speech", chinese: "鼓舞人心的演講", supplement: "inspire v. 激勵", englishContext: "The CEO gave an inspiring speech about the company's future vision.", chineseContext: "執行長發表了一場關於公司未來願景的鼓舞人心的演講。", tip: "💡 Inspiring 是啟發人心的，speech 是演說。" },
+            { english: "an ambitious goal", chinese: "有野心的目標", supplement: "ambition n. 野心", englishContext: "Setting an ambitious goal drives innovation and hard work.", chineseContext: "設定一個有野心的目標能驅動創新和努力工作。", tip: "🎯 Ambitious 是有抱負的，goal 是目標。" },
+            { english: "an ideal environment", chinese: "理想的環境", supplement: "ideal adj. 理想的", englishContext: "A quiet room is an ideal environment for focused studying.", chineseContext: "安靜的房間是專注學習的理想環境。", tip: "🌿 Ideal 是完美的，environment 是環境。" },
+            { english: "an accomplished artist", chinese: "造詣很高的藝術家", supplement: "accomplish v. 完成", englishContext: "She is an accomplished artist whose paintings are displayed internationally.", chineseContext: "她是一位造詣很高的藝術家，她的畫作在國際上展出。", tip: "🎨 Accomplished 是有成就的。" },
+            { english: "an inventory list", chinese: "庫存清單", supplement: "inventory n. 庫存", englishContext: "The manager performs an inventory list check every quarter.", chineseContext: "經理每季度都會進行一次庫存清單檢查。", tip: "📦 Inventory 是倉庫中的物品，list 是清單。" },
+            { english: "a sales receipt", chinese: "銷售收據", supplement: "receive v. 收到", englishContext: "Keep your sales receipt as proof of purchase for warranty claims.", chineseContext: "請保留您的銷售收據作為保固索賠的購買證明。", tip: "🧾 Sales 是銷售，receipt 是收據。" },
+            { english: "a food critic", chinese: "美食評論家", supplement: "criticize v. 批評", englishContext: "The new restaurant received a harsh review from a famous food critic.", chineseContext: "這家新餐廳收到了著名美食評論家的嚴厲評論。", tip: "🍴 Food 是食物，critic 是評論家。" },
+            { english: "a special occasion", chinese: "特殊的場合", supplement: "occasion n. 場合", englishContext: "We only use the expensive silverware for a special occasion.", chineseContext: "我們只在特殊的場合使用昂貴的銀器。", tip: "🎁 Special 是特別的，occasion 是時機。" },
+            { english: "a concert venue", chinese: "音樂會場地", supplement: "venue n. 場地", englishContext: "The concert venue has a capacity of over 10,000 people.", chineseContext: "這個音樂會場地可容納超過 10,000 人。", tip: "🏟️ Concert 是音樂會，venue 是舉行地點。" },
+            { english: "a production schedule", chinese: "生產排程表", supplement: "produce v. 生產", englishContext: "The new production schedule aims to optimize efficiency and reduce delays.", chineseContext: "新的生產排程表旨在優化效率並減少延誤。", tip: "⚙️ Production 是生產，schedule 是時間表。" },
+            { english: "a training workshop", chinese: "培訓工作坊", supplement: "train v. 訓練", englishContext: "All new hires must attend the two-day training workshop.", chineseContext: "所有新員工都必須參加這個為期兩天的培訓工作坊。", tip: "👨‍🏫 Training 是培訓，workshop 是研討會。" },
+            { english: "an impressive résumé", chinese: "令人印象深刻的履歷", supplement: "impress v. 使...印象深刻", englishContext: "His impressive résumé included fluency in three languages and international experience.", chineseContext: "他令人印象深刻的履歷包括流利的三種語言和國際經驗。", tip: "🌟 Impressive 是令人佩服的，résumé 是履歷表。" },
+            { english: "an educational background", chinese: "教育背景", supplement: "educate v. 教育", englishContext: "A strong educational background is often required for this specialized role.", chineseContext: "擔任這個專業職位通常需要強大的教育背景。", tip: "🎓 Educational 是教育的，background 是背景。" },
+            { english: "a marketing campaign", chinese: "行銷活動", supplement: "campaign n. 活動", englishContext: "The company launched a massive marketing campaign targeting young consumers.", chineseContext: "該公司發起了一項針對年輕消費者的大型行銷活動。", tip: "📣 Marketing 是市場行銷，campaign 是戰役。" },
+            { english: "a sales presentation", chinese: "銷售(口頭)報告", supplement: "present v. 呈現", englishContext: "The team practiced their sales presentation before meeting the potential investor.", chineseContext: "團隊在會見潛在投資者之前練習了他們的銷售報告。", tip: "💼 Sales 是銷售，presentation 是報告。" },
+            { english: "a slideshow presentation", chinese: "使用投影片的(口頭)報告", supplement: "slideshow n. 投影片", englishContext: "He used a slideshow presentation to illustrate the key data points.", chineseContext: "他使用投影片報告來闡述關鍵的數據點。", tip: "📊 Slideshow 是投影片。" },
+            { english: "a senior executive", chinese: "高階主管", supplement: "senior adj. 年長的;高階的", englishContext: "The decision must be approved by a senior executive before proceeding.", chineseContext: "該決定必須得到一位高階主管的批准才能繼續進行。", tip: "👨‍💼 Senior 是資深，executive 是執行者。" },
+            { english: "a medical journal", chinese: "醫學期刊", supplement: "medicine n. 醫學;藥物", englishContext: "New research findings were published in a prestigious medical journal.", chineseContext: "新的研究發現發表在一本著名的醫學期刊上。", tip: "🩺 Medical 是醫學的，journal 是日報/期刊。" },
+            { english: "an informative brochure", chinese: "資訊豐富的手冊", supplement: "information n. 資訊", englishContext: "The tourist office hands out an informative brochure detailing local attractions.", chineseContext: "旅遊辦公室分發了一份詳細介紹當地景點的資訊豐富的手冊。", tip: "ℹ️ Informative 是提供信息的，brochure 是小冊子。" },
+            { english: "a landscaping company", chinese: "景觀設計公司", supplement: "landscape n. 景觀", englishContext: "We hired a landscaping company to redesign our garden.", chineseContext: "我們僱用了一家景觀設計公司來重新設計我們的花園。", tip: "🌳 Landscaping 是景觀美化，company 是公司。" },
+            { english: "an aisle seat", chinese: "靠走道的座位", supplement: "aisle n. 走道", englishContext: "I prefer to reserve an aisle seat so I can easily get up during the flight.", chineseContext: "我更喜歡預訂一個靠走道的座位，這樣在飛行中我可以輕鬆起身。", tip: "🚶 Aisle 是飛機或戲院的走道。" },
+            { english: "a small workforce", chinese: "小規模的勞力", supplement: "workforce n. 勞動力", englishContext: "The startup operates efficiently with a small workforce and advanced technology.", chineseContext: "這家新創公司以小規模的勞力和先進的技術高效運營。", tip: "🛠️ Workforce 是工作團隊。" },
+            { english: "a banquet hall", chinese: "宴會廳", supplement: "banquet n. 宴會", englishContext: "The wedding reception was held in the grand banquet hall.", chineseContext: "婚禮招待會在宏偉的宴會廳舉行。", tip: "🥂 Banquet 是盛宴，hall 是大廳。" },
+            { english: "a breathtaking view", chinese: "令人嘆為觀止的景色", supplement: "breathtaking adj. 驚人的", englishContext: "The hotel room offered a breathtaking view of the entire city skyline.", chineseContext: "這間飯店房間提供了整個城市天際線的令人嘆為觀止的景色。", tip: "🤩 Breathtaking 是美到讓人屏息。" },
+            { english: "a cost comparison", chinese: "成本比較", supplement: "compare v. 比較", englishContext: "We need to conduct a cost comparison between the two suppliers before making a decision.", chineseContext: "我們需要在做出決定前對這兩家供應商進行成本比較。", tip: "💰 Cost 是成本，comparison 是對比。" },
+            { english: "a partial refund", chinese: "部分退款", supplement: "part n. 部分", englishContext: "The store only offered a partial refund because the item was slightly damaged.", chineseContext: "因為商品輕微受損，店家只提供了部分退款。", tip: "💔 Partial 是部分的，refund 是退款。" },
+            { english: "an introductory course", chinese: "入門課程", supplement: "introduce v. 介紹", englishContext: "This introductory course is designed for beginners with no prior experience.", chineseContext: "這門入門課程是為沒有先驗經驗的初學者設計的。", tip: "👶 Introductory 是介紹性的，course 是課程。" },
+            { english: "a diligent worker", chinese: "勤奮的工人", supplement: "diligent adj. 勤奮的", englishContext: "The manager praised him as a diligent worker who always met his deadlines.", chineseContext: "經理稱讚他是一位總是能按時完成任務的勤奮工人。", tip: "🐝 Diligent 是勤勞的，worker 是工作者。" },
+            { english: "a staff transfer", chinese: "員工調動", supplement: "transfer v./n. 調動/轉移", englishContext: "The staff transfer was initiated to fill a vacant position in the overseas branch.", chineseContext: "啟動了員工調動以填補海外分公司的空缺職位。", tip: "🔄 Staff 是員工，transfer 是移動。" },
+            { english: "an awards ceremony", chinese: "頒獎典禮", supplement: "award n. 獎項", englishContext: "The annual awards ceremony will recognize outstanding achievements in the industry.", chineseContext: "一年一度的頒獎典禮將表彰業界的傑出成就。", tip: "🏆 Awards 是獎項，ceremony 是儀式。" },
+            { english: "a digital image", chinese: "數位影像", supplement: "digital adj. 數位的", englishContext: "The photograph was converted into a high-resolution digital image for printing.", chineseContext: "這張照片被轉換成高解析度的數位影像用於列印。", tip: "💻 Digital 是數位，image 是圖像。" },
+            { english: "a $5 voucher", chinese: "5 美元的優惠券", supplement: "voucher n. 憑證", englishContext: "Customers who complain receive a $5 voucher for their next purchase.", chineseContext: "投訴的顧客將獲得一張 5 美元的下次購買優惠券。", tip: "🎟️ Voucher 是代金券。" },
+            { english: "a follow-up study", chinese: "後續研究", supplement: "follow-up n. 後續", englishContext: "A follow-up study is needed to confirm the long-term effects of the new medication.", chineseContext: "需要進行一項後續研究來確認這種新藥的長期效果。", tip: "🔍 Follow-up 是追蹤。" },
+            { english: "a university campus", chinese: "大學校園", supplement: "campus n. 校園", englishContext: "The university campus features several modern buildings and a large park.", chineseContext: "這所大學校園設有幾棟現代建築和一個大公園。", tip: "🏫 University 是大學，campus 是校區。" },
+            { english: "an amusement park", chinese: "遊樂園", supplement: "amuse v. 使人開心", englishContext: "The new roller coaster is the main attraction at the amusement park.", chineseContext: "新的雲霄飛車是這個遊樂園的主要景點。", tip: "🎢 Amusement 是娛樂，park 是公園。" },
+            { english: "an eye doctor's clinic", chinese: "眼科醫生診所", supplement: "clinic n. 診所", englishContext: "He scheduled an appointment at the eye doctor's clinic for his annual check-up.", chineseContext: "他預約了眼科醫生診所進行年度檢查。", tip: "👁️ Eye doctor 是眼科醫生。" },
+            { english: "a standard double room", chinese: "標準雙人房", supplement: "single room n. 單人房", englishContext: "The hotel reserved a standard double room with a view of the ocean.", chineseContext: "這家飯店預訂了一間可以看到海景的標準雙人房。", tip: "🛏️ Double 是雙人，room 是房間。" },
+
+            // --- Day 3 (101-150) ---
+            { english: "a company anniversary", chinese: "公司週年紀念日", supplement: "anniversary n. 週年紀念日", englishContext: "The company anniversary celebration was held at a downtown hotel ballroom.", chineseContext: "公司週年紀念活動在市中心的一家飯店宴會廳舉行。", tip: "🎉 Anniversary 是紀念日，公司生日。" },
+            { english: "an inexpensive choice", chinese: "價格實惠的選擇", supplement: "inexpensive adj. 便宜的", englishContext: "The brand offers an inexpensive choice that does not compromise on quality.", chineseContext: "這個品牌提供了一個在品質上不妥協的價格實惠的選擇。", tip: "💰 Inexpensive 是不貴的，choice 是選擇。" },
+            { english: "a full-page poster", chinese: "整版海報", supplement: "poster n. 海報", englishContext: "The marketing team designed a stunning full-page poster for the new product launch.", chineseContext: "行銷團隊為新產品發布設計了一張驚豔的整版海報。", tip: "📄 Full-page 是整個頁面。" },
+            { english: "an insurance company", chinese: "保險公司", supplement: "insure v. 替...投保", englishContext: "He called his insurance company to file a claim after the accident.", chineseContext: "事故發生後，他打電話給他的保險公司提出索賠。", tip: "🛡️ Insurance 是保險。" },
+            { english: "a valid credit card", chinese: "有效的信用卡", supplement: "valid adj. 有效的", englishContext: "You must provide a valid credit card number to secure your reservation.", chineseContext: "您必須提供一個有效的信用卡號碼來確保您的預訂。", tip: "💳 Valid 是有效，card 是卡。" },
+            { english: "a real estate agency", chinese: "房地產中介", supplement: "agent n. 經紀人;探員", englishContext: "We consulted a real estate agency to help us find an apartment in the city center.", chineseContext: "我們諮詢了一家房地產中介來幫助我們在市中心找到公寓。", tip: "🏡 Real estate 是房地產。" },
+            { english: "a very capable manager", chinese: "非常有能力的經理", supplement: "capability n. 能力", englishContext: "The CEO described him as a very capable manager who can handle complex projects.", chineseContext: "執行長形容他是一位可以處理複雜項目的非常有能力的經理。", tip: "🧠 Capable 是有能力的。" },
+            { english: "a town council member", chinese: "鎮議會成員", supplement: "council n. 議會", englishContext: "She was elected as a town council member to represent the local community.", chineseContext: "她被選為鎮議會成員來代表當地社區。", tip: "🏛️ Town 是城鎮，council 是議會。" },
+            { english: "a graphic design firm", chinese: "平面設計公司", supplement: "graphic adj. 圖像的", englishContext: "Our new logo was created by a renowned graphic design firm.", chineseContext: "我們的新標誌是由一家著名的平面設計公司創建的。", tip: "🖼️ Graphic 是圖形，design 是設計。" },
+            { english: "an online tracking system", chinese: "線上追蹤系統", supplement: "track v. 追蹤", englishContext: "Customers can use the online tracking system to monitor the delivery status of their order.", chineseContext: "顧客可以使用線上追蹤系統來監控他們訂單的送貨狀態。", tip: "📍 Tracking 是追蹤。" },
+            { english: "a fierce competition", chinese: "激烈的競賽", supplement: "competitive adj. 競爭激烈的", englishContext: "Due to the high salaries, there is a fierce competition for jobs in this field.", chineseContext: "由於薪水很高，在這個領域的職位存在激烈的競爭。", tip: "🔥 Fierce 是猛烈的，competition 是競爭。" },
+            { english: "a photography exhibition", chinese: "攝影展", supplement: "exhibit v. 展示", englishContext: "The museum is hosting a new photography exhibition featuring landscape artists.", chineseContext: "博物館正在舉辦一場以風景藝術家為特色的新攝影展。", tip: "📸 Photography 是攝影，exhibition 是展覽。" },
+            { english: "a confirmation number", chinese: "確認碼", supplement: "confirm v. 確認", englishContext: "Please save your confirmation number as you will need it for check-in.", chineseContext: "請保存您的確認碼，您在辦理入住時會需要它。", tip: "✅ Confirmation 是確認。" },
+            { english: "a monthly allowance", chinese: "每月津貼", supplement: "allowance n. 津貼", englishContext: "The travel allowance is credited to the employee's account at the beginning of each month.", chineseContext: "旅行津貼會在每個月初存入員工的帳戶。", tip: "💵 Monthly 是每月，allowance 是給予的金額。" },
+            { english: "a quiet, scenic spot", chinese: "一個安靜的景點", supplement: "scenic adj. 風景優美的", englishContext: "The park offers several quiet, scenic spot perfect for reading or meditation.", chineseContext: "公園提供了一些安靜、風景優美的地點，非常適合閱讀或冥想。", tip: "🏞️ Scenic 是風景如畫的。" },
+            { english: "one page in length", chinese: "一頁的長度", supplement: "long adj. 長的", englishContext: "All proposals must be concise and limited to one page in length.", chineseContext: "所有提案都必須簡潔，並限制在一頁的長度。", tip: "📏 Length 是長度。" },
+            { english: "the arrival time", chinese: "到達時間", supplement: "arrive v. 到達", englishContext: "Please notify the reception desk if there are changes to your expected arrival time.", chineseContext: "如果您的預計到達時間有變更，請通知接待處。", tip: "🕰️ Arrival 是抵達。" },
+            { english: "a selected departure date", chinese: "選定的出發日期", supplement: "depart v. 出發", englishContext: "The booking confirmation shows the selected departure date and flight number.", chineseContext: "預訂確認單顯示了選定的出發日期和航班號碼。", tip: "📅 Departure 是出發。" },
+            { english: "a highly complicated process", chinese: "高度複雜的過程", supplement: "complicated adj. 複雜的", englishContext: "Obtaining the necessary permits proved to be a highly complicated process.", chineseContext: "獲得必要的許可證被證明是一個高度複雜的過程。", tip: "🤯 Complicated 是難以理解的。" },
+            { english: "a relatively new trend", chinese: "相對較新的趨勢", supplement: "relatively adv. 相對地", englishContext: "The use of AI in marketing is still a relatively new trend in the industry.", chineseContext: "在行銷中使用 AI 在業界仍然是一個相對較新的趨勢。", tip: "🆕 Trend 是潮流。" },
+            { english: "a newly renovated hotel", chinese: "新裝修的飯店", supplement: "renovation n. 裝修", englishContext: "We are staying at a newly renovated hotel that offers modern amenities.", chineseContext: "我們入住了一家提供現代化設施的新裝修飯店。", tip: "🛠️ Renovated 是翻新的。" },
+            { english: "a previously planned parking space", chinese: "先前規劃的停車位", supplement: "previously adv. 以前地", englishContext: "The area was a previously planned parking space, but it has been converted into a garden.", chineseContext: "這個區域是先前規劃的停車位，但已被改建成花園。", tip: "🅿️ Previously 是預先。" },
+            { english: "a regularly scheduled meeting", chinese: "定期排程的會議", supplement: "regularly adv. 定期地", englishContext: "Attendance is mandatory for the regularly scheduled meeting every Monday morning.", chineseContext: "每週一早上的定期排程會議是強制出席的。", tip: "🗓️ Regularly 是有規律地。" },
+            { english: "an attempt to cut costs", chinese: "削減成本的嘗試", supplement: "attempt v./n. 企圖、嘗試", englishContext: "The company announced an attempt to cut costs by reducing unnecessary travel.", chineseContext: "該公司宣布嘗試透過減少不必要的差旅來削減成本。", tip: "✂️ Cut costs 是降低費用。" },
+            { english: "the photocopier at the corner", chinese: "角落的影印機", supplement: "photocopy v./n. 影印/影本", englishContext: "Please make two copies of the report using the photocopier at the corner.", chineseContext: "請使用角落的影印機將報告影印兩份。", tip: "🖨️ Photocopier 是影印機。" },
+            { english: "a map on the bulletin board", chinese: "佈告欄上的地圖", supplement: "bulletin board n. 佈告欄", englishContext: "You can find directions to the conference room on the map on the bulletin board.", chineseContext: "您可以在佈告欄上的地圖找到前往會議室的指示。", tip: "📌 Bulletin board 是公告欄。" },
+            { english: "an enrollment officer at a university", chinese: "大學註冊官員", supplement: "enroll v. 註冊", englishContext: "The enrollment officer at a university guides new students through the registration process.", chineseContext: "大學的註冊官員指導新生完成註冊過程。", tip: "👨‍🏫 Enrollment 是註冊。" },
+            { english: "an excerpt from a workshop", chinese: "研討會的摘錄", supplement: "excerpt n. 摘錄", englishContext: "The newsletter contains an excerpt from a workshop on leadership skills.", chineseContext: "這份電子報包含了關於領導力技能研討會的一段摘錄。", tip: "📜 Excerpt 是節選。" },
+            { english: "a handout from today's session", chinese: "今天這堂課的講義", supplement: "session n. (一次)會議; 一段(課程/看診...)時間", englishContext: "Please review the handout from today's session before the next class.", chineseContext: "請在下一堂課前複習今天這堂課的講義。", tip: "📝 Handout 是發下來的資料。" },
+            { english: "definitely a good candidate", chinese: "絕對是個好人選", supplement: "candidate n. 候選人", englishContext: "With his experience and skills, John is definitely a good candidate for the promotion.", chineseContext: "憑藉他的經驗和技能，約翰絕對是升職的好人選。", tip: "👍 Definitely 是肯定地。" },
+            { english: "one day earlier than expected", chinese: "比預期提前一天", supplement: "expected adj. 預期的", englishContext: "The shipment arrived one day earlier than expected, much to our surprise.", chineseContext: "這批貨物比預期提前一天到達，讓我們非常驚喜。", tip: "📅 Earlier 是更早。" },
+            { english: "a notable feature of the Plaza Hotel", chinese: "廣場酒店的一個顯著特點", supplement: "feature n./v. 特點/以...為特色", englishContext: "The rooftop garden is a notable feature of the Plaza Hotel, offering stunning views.", chineseContext: "屋頂花園是廣場酒店的一個顯著特點，提供令人驚嘆的景色。", tip: "🌟 Notable 是值得注意的。" },
+            { english: "the overall performance", chinese: "整體表現", supplement: "perform v. 表現", englishContext: "The overall performance of the marketing team surpassed expectations this quarter.", chineseContext: "行銷團隊的整體表現本季度超出了預期。", tip: "📈 Overall 是全面的。" },
+            { english: "the company directory", chinese: "公司名錄", supplement: "directory n. 名錄", englishContext: "Check the company directory for the contact information of the HR department.", chineseContext: "查看公司名錄以獲取人力資源部門的聯繫資訊。", tip: "📞 Directory 是電話簿。" },
+            { english: "the top priority", chinese: "第一要務", supplement: "priority n. 優先事項", englishContext: "Customer safety must always remain the top priority of the airline.", chineseContext: "客戶安全必須始終是航空公司的第一要務。", tip: "🥇 Top 是最高，priority 是優先。" },
+            { english: "the onboarding process", chinese: "入職流程", supplement: "process n. 過程", englishContext: "We are working to streamline the onboarding process for new employees to save time.", chineseContext: "我們正在努力簡化新員工的入職流程以節省時間。", tip: "💼 Onboarding 是上船/加入公司。" },
+            { english: "the surrounding area", chinese: "周邊地區", supplement: "surround v. 圍繞", englishContext: "The project includes plans to develop the park and the surrounding area.", chineseContext: "該項目包括開發公園和周邊地區的計劃。", tip: "🌳 Surrounding 是周圍的。" },
+            { english: "the intended audience", chinese: "目標受眾", supplement: "intend v. 打算、意欲", englishContext: "The advertisement campaign failed because it did not reach the intended audience.", chineseContext: "這項廣告活動失敗了，因為它沒有觸及目標受眾。", tip: "🎯 Intended 是被預期的。" },
+            { english: "the retail business", chinese: "零售業務", supplement: "wholesale adj. 批發", englishContext: "The company decided to shift focus from wholesale to the direct retail business.", chineseContext: "這間公司決定將重點從批發轉向直接零售業務。", tip: "🛍️ Retail 是零售，相對於 wholesale（批發）。" },
+            { english: "the main entrance", chinese: "主要入口", supplement: "enter v. 進入", englishContext: "All visitors must check in at the reception desk near the main entrance.", chineseContext: "所有訪客必須在靠近主要入口的接待處辦理簽到。", tip: "🚪 Main 是主要，entrance 是入口。" },
+            { english: "the original design", chinese: "原本的設計", supplement: "original adj. 原始的", englishContext: "We returned to the original design concept after the initial model was rejected.", chineseContext: "在最初的模型被否決後，我們回到了原本的設計概念。", tip: "📐 Original 是最初的。" },
+            { english: "the hot/ cold faucet", chinese: "熱水龍頭/冷水龍頭", supplement: "faucet n. 水龍頭", englishContext: "Be careful when turning the hot faucet, as the water can be very hot.", chineseContext: "轉動熱水龍頭時要小心，因為水可能非常燙。", tip: "💧 Faucet 是水龍頭。" },
+            { english: "the reception area", chinese: "接待區", supplement: "receive v. 接受;接待", englishContext: "Please wait for your interview in the brightly lit reception area.", chineseContext: "請在光線充足的接待區等待您的面試。", tip: "🛋️ Reception 是接待。" },
+            { english: "the city government", chinese: "市政府", supplement: "government n. 政府", englishContext: "The city government announced new regulations on public transportation.", chineseContext: "市政府宣布了關於公共交通的新規定。", tip: "🏙️ City 是城市，government 是政府。" },
+            { english: "the entire staff", chinese: "全體員工", supplement: "entire adj. 整個的", englishContext: "The company rewarded the entire staff with a bonus after a successful quarter.", chineseContext: "在成功的一個季度後，公司獎勵了全體員工一筆獎金。", tip: "👥 Entire 是全部的。" },
+            { english: "our company president", chinese: "我們公司總裁", supplement: "president n. 總統;總裁", englishContext: "Our company president will be giving the opening remarks at the conference.", chineseContext: "我們公司總裁將在會議上致開幕詞。", tip: "👨‍💼 President 是總統/總裁。" },
+            { english: "the company newsletter", chinese: "公司電子報", supplement: "newsletter n. 電子報", englishContext: "The company newsletter is distributed every Friday with updates and announcements.", chineseContext: "公司電子報每週五發布，其中包含最新資訊和公告。", tip: "📧 Newsletter 是新聞簡報。" },
+            { english: "the baggage claim area", chinese: "行李提取區", supplement: "baggage n. 行李", englishContext: "Passengers should proceed directly to the baggage claim area after landing.", chineseContext: "乘客在降落後應直接前往行李提取區。", tip: "🛄 Baggage claim 是領行李。" },
+            { english: "the city park officials", chinese: "市立公園的官員", supplement: "official n. 官員", englishContext: "The city park officials decided to close the trails due to hazardous weather.", chineseContext: "由於危險的天氣，市立公園的官員決定關閉步道。", tip: "🌳 Park 是公園，officials 是官員。" },
+            { english: "the attached memo", chinese: "附上的備忘錄", supplement: "attach...to v. 附、貼在...", englishContext: "Please read the attached memo for important changes to the office policy.", chineseContext: "請閱讀附上的備忘錄，以了解辦公室政策的重要變更。", tip: "📎 Attached 是附件。" },
+        ];
+        
+        // 額外的單詞字典 (擴充版)
+        const wordDictionary = {
+            "company": "公司", "actively": "積極地", "looking": "尋找", "qualified": "合格的", "fill": "填補", "positions": "職位", "prioritize": "優先處理", "needs": "需求", "represents": "代表", "revenue": "營收", "exchange": "交換", "networking": "社交/建立人脈", "contact": "聯繫", "use": "使用", "send": "發送", "signed": "已簽署的", "contract": "合約", "employees": "員工", "take": "拿取/利用", "broadcast": "廣播/直播", "announcement": "公告", "ensure": "確保", "submit": "提交", "necessary": "必要的", "identification": "身份證明", "documents": "文件", "conference": "會議", "renowned": "著名的", "economist": "經濟學家", "committee": "委員會", "invited": "邀請", "turnout": "投票率", "unexpectedly": "出乎意料地", "scheduled": "預定的", "rain": "雨", "exceed": "超過", "quarterly": "季度的", "targets": "目標", "receive": "收到/獲得", "substantial": "豐厚的", "benefits": "福利", "quit": "辭職", "position": "職位/職務", "local": "地方的", "event": "活動", "annual": "年度的", "sales": "銷售", "details": "細節", "check": "查看", "bulletin": "公告/布告", "board": "板子", "voter": "選民", "forecast": "預報", "outdoor": "戶外的", "concert": "音樂會", "held": "舉行", "as": "如同", "available": "可用的", "survey": "問卷", "decided": "決定", "career": "職涯", "path": "道路", "layoff": "裁員", "ad": "廣告", "agency": "代理商", "designs": "設計", "various": "各種的", "industries": "產業", "health": "健康", "well-being": "幸福感", "work": "工作", "tourists": "遊客", "currency": "貨幣", "yen": "日圓", "file": "檔案", "attachment": "附件", "email": "電子郵件", "midnight": "午夜", "artist": "藝術家", "contemporary": "當代的", "scene": "場景", "holds": "舉行", "review": "審查", "meeting": "會議", "december": "十二月", "mayor": "市長", "next": "下一個", "month": "月份", "should": "應該", "cost": "費用", "budget": "預算", "full": "完整的", "is": "是",
+            
+            // --- Day 2/3 新增詞彙 ---
+            "waste": "廢棄物", "placed": "放置", "staring": "盯著看", "strain": "疲勞", "supermarket": "超市", "careful": "小心", "walk": "行走", "cleaning": "清潔", "carried": "撐著", "turbulence": "亂流", "pilot": "飛行員", "managed": "設法", "maintain": "維持", "postponed": "推遲", "unexpected": "預料之外的", "present": "出示", "enter": "進入", "gallery": "畫廊", "refer": "參考", "assigned": "分配的", "provided": "提供", "project": "項目", "goals": "目標", "pens": "筆", "notebooks": "筆記本", "goal": "目標", "become": "成為", "renewable": "再生能源", "technology": "技術", "crucial": "重要的", "building": "建立", "relationships": "關係", "coffee": "咖啡", "discuss": "討論", "proposal": "提案", "check": "檢查", "store": "商店", "purchase": "購買", "utilities": "水電費", "maintenance": "維護", "fees": "費用", "delicious": "美味的", "provided": "提供", "citizens": "公民", "voice": "表達", "concerns": "擔憂", "tax": "稅", "held": "舉行", "author": "作者", "session": "時段", "display": "展示", "dashboard": "儀表板", "temporary": "臨時的", "lot": "停車場", "recommend": "推薦", "historical": "歷史的", "castle": "城堡", "quit": "辭職", "position": "職位", "benefits": "福利", "attracts": "吸引", "thousands": "數千", "attendees": "參與者", "storm": "暴風雨", "experienced": "經歷", "widespread": "廣泛的", "bank": "銀行", "opening": "開設", "north": "北", "side": "側", "town": "城鎮", "ceo": "執行長", "expressed": "表示", "concern": "擔憂", "regions": "地區", "clearance": "清倉", "items": "商品", "offered": "提供", "liquidation": "清算", "pay": "支付", "receipt": "收據", "subscribers": "訂閱者", "whenever": "每當", "posted": "張貼", "delivered": "發表", "fascinating": "迷人的", "quantum": "量子", "physics": "物理學", 
+            
+            // 更多 Day 2/3 詞彙
+            "waste": "廢棄物", "staring": "盯著看", "shelf": "架子", "cooling": "冷卻", "cleaning": "清潔", "inside": "內部", "carried": "撐著", "even": "甚至", "indoor": "室內的", "guests": "客人", "involved": "捲入", "patent": "專利", "rights": "權利", "force": "強行", "plug": "插頭", "fit": "合適", "temple": "寺廟", "main": "主要的", "attach": "附上", "receipts": "收據", "monthly": "每月的", "strain": "疲勞", "vision": "願景", "innovation": "創新", "quiet": "安靜的", "room": "房間", "focused": "專注的", "studying": "學習", "paintings": "畫作", "displayed": "展示", "quarter": "季度", "warranty": "保固", "claims": "索賠", "harsh": "嚴厲的", "review": "評論", "silverware": "銀器", "capacity": "容量", "optimize": "優化", "efficiency": "效率", "delays": "延誤", "hires": "僱員", "languages": "語言", "international": "國際的", "launched": "發起", "massive": "大規模的", "targeting": "針對", "consumers": "消費者", "potential": "潛在的", "investor": "投資者", "key": "關鍵的", "data": "數據", "points": "點", "decision": "決定", "approved": "批准", "proceeding": "繼續進行", "published": "出版", "findings": "發現", "prestigious": "著名的", "detailing": "詳細介紹", "hired": "僱用", "redesign": "重新設計", "garden": "花園", "prefer": "喜歡", "reserve": "預訂", "get": "起身", "easily": "容易地", "up": "向上", "storm": "暴風雨", "experienced": "經歷", "widespread": "廣泛的", "library": "圖書館", "concern": "擔憂", "items": "商品", "liquidation": "清算", "pay": "支付", "receipt": "收據", "subscribers": "訂閱者", "whenever": "每當", "posted": "張貼", "delivered": "發表", "fascinating": "迷人的", "quantum": "量子", "physics": "物理學",
+            "compete": "競爭", "requires": "需要", "intense": "密集的", "training": "訓練", "demand": "需求", "science": "科學", "waiting": "等候", "suspect": "嫌疑人", "market": "市場", "climbing": "攀登", "everest": "聖母峰", "described": "形容", "checkout": "結帳", "receiving": "收到", "merger": "合併", "alumni": "校友", "graduated": "畢業", "decade": "十年", "postponed": "推遲", "turbulence": "亂流", "pilot": "飛行員", "maintained": "維持", "dashboard": "儀表板", "temporary": "臨時的", "lot": "停車場", "historical": "歷史的", "background": "背景", "castle": "城堡", "mayor": "市長", "next": "下個月", "rewards": "獎勵", "available": "可用的", "survey": "問卷", "decided": "決定", "career": "職涯", "path": "道路", "layoff": "裁員", "ad": "廣告", "agency": "代理商", "designs": "設計", "various": "各種的", "industries": "產業",
+            "celebration": "慶祝", "ballroom": "宴會廳", "compromise": "妥協", "quality": "品質", "stunning": "驚豔的", "launch": "發布", "consulted": "諮詢", "apartment": "公寓", "handled": "處理", "complex": "複雜的", "elected": "選出", "represent": "代表", "community": "社區", "monitor": "監控", "delivery": "送貨", "status": "狀態", "fierce": "猛烈的", "salaries": "薪水", "field": "領域", "hosting": "舉辦", "landscape": "風景", "artists": "藝術家", "check-in": "辦理入住", "credited": "存入", "account": "帳戶", "beginning": "開始", "meditation": "冥想", "concise": "簡潔的", "limited": "限制", "notify": "通知", "reception": "接待處", "desk": "櫃檯", "changes": "變更", "expected": "預計的", "booking": "預訂", "confirmation": "確認單", "flight": "航班", "number": "號碼", "obtaining": "獲得", "permits": "許可證", "proved": "證明", "complicated": "複雜的", "conversion": "轉換", "model": "模型", "rejected": "否決", "lit": "有光線的", "interview": "面試", "transportation": "交通", "announced": "宣布", "regulations": "規定", "trails": "步道", "hazardous": "危險的", "policy": "政策", "updates": "最新資訊", "distributed": "發布"
+        };
+        
+        /**
+         * 處理英文情境例句，將字典中的單詞用 span 包裝起來以啟用懸停翻譯
+         * @param {string} englishContext - 英文例句
+         * @returns {string} 帶有懸停元素的 HTML 字串
+         */
+        function renderContextWithTooltips(englishContext) {
+            if (!englishContext) return '';
+
+            // 使用正規表達式將句子分割成單詞和分隔符號（包括空格和標點符號）
+            const parts = englishContext.split(/([\s,.;?!()]+)/); 
+            let output = '';
+
+            parts.forEach(part => {
+                if (part.trim() === '') {
+                    output += part; // 保留空格和標點符號
+                    return;
+                }
+
+                // 移除前後標點符號，以便在字典中查找
+                let cleanedWord = part.replace(/[,.:;?!()]$/g, '').toLowerCase();
+                
+                // 檢查是否為字典中的單詞
+                let translation = wordDictionary[cleanedWord];
+                
+                // 處理部分不規則變化 (僅處理簡單的 s 和 ed)
+                if (!translation) {
+                    if (cleanedWord.endsWith('s') && wordDictionary[cleanedWord.slice(0, -1)]) {
+                        translation = wordDictionary[cleanedWord.slice(0, -1)];
+                    } else if (cleanedWord.endsWith('ed') && wordDictionary[cleanedWord.slice(0, -2)]) {
+                        translation = wordDictionary[cleanedWord.slice(0, -2)];
+                    }
+                }
+
+                if (translation) {
+                    // 如果有翻譯，則用 span 包裝，並帶上 data-translation 屬性
+                    output += `<span class="context-word" data-translation="${translation}">${part}</span>`;
+                } else {
+                    output += part; // 沒有翻譯，保持原樣
+                }
+            });
+
+            return output;
+        }
+
+        /**
+         * 快速查找核心短語的中文翻譯
+         * @param {string} englishPhrase - 英文短語 (e.g., "a job seeker")
+         * @returns {string} - 中文翻譯 (e.g., "求職者")
+         */
+        function getCoreChineseTranslation(englishPhrase) {
+            const vocab = vocabData.find(v => v.english === englishPhrase);
+            return vocab ? vocab.chinese : '';
+        }
+
+        // --- 模式切換邏輯 ---
+        const cardMode = document.getElementById('card-mode');
+        const quizMode = document.getElementById('quiz-mode');
+        const cardModeBtn = document.getElementById('card-mode-btn');
+        const quizModeBtn = document.getElementById('quiz-mode-btn');
+
+        let currentMode = 'card';
+
+        function switchMode(mode) {
+            currentMode = mode;
+            if (mode === 'card') {
+                cardMode.classList.remove('hidden');
+                quizMode.classList.add('hidden');
+                cardModeBtn.classList.add('active-tab');
+                cardModeBtn.classList.remove('text-gray-600', 'bg-gray-100');
+                quizModeBtn.classList.remove('active-tab');
+                quizModeBtn.classList.add('text-gray-600', 'bg-gray-100');
+            } else {
+                cardMode.classList.add('hidden');
+                quizMode.classList.remove('hidden');
+                quizModeBtn.classList.add('active-tab');
+                quizModeBtn.classList.remove('text-gray-600', 'bg-gray-100');
+                cardModeBtn.classList.remove('active-tab');
+                cardModeBtn.classList.add('text-gray-600', 'bg-gray-100');
+                resetQuizSettings(); // 切換到測驗時，先進入設定頁
+            }
+        }
+
+        cardModeBtn.addEventListener('click', () => switchMode('card'));
+        quizModeBtn.addEventListener('click', () => switchMode('quiz'));
+
+
+        // --- 卡片學習模式邏輯 (Card Study) ---
+        let cardIndex = 0;
+        const cardEnglish = document.getElementById('card-english');
+        const cardChineseCore = document.getElementById('card-chinese-core'); 
+        
+        const cardEnglishContext = document.getElementById('card-english-context');
+        const cardChineseContext = document.getElementById('card-chinese-context');
+        const cardTip = document.getElementById('card-tip');
+        
+        const cardSupplementDetail = document.getElementById('card-supplement-detail'); 
+        const cardSupplement = document.getElementById('card-supplement');
+        
+        const cardPrevBtn = document.getElementById('card-prev-btn');
+        const cardNextBtn = document.getElementById('card-next-btn');
+        const cardJumpBtn = document.getElementById('card-jump-btn');
+        const cardProgress = document.getElementById('card-progress');
+        
+        // Modal 相關元素
+        const jumpModal = document.getElementById('jump-modal');
+        const jumpInput = document.getElementById('jump-input');
+        const jumpConfirm = document.getElementById('jump-confirm');
+        const jumpCancel = document.getElementById('jump-cancel');
+        const jumpModalMessage = document.getElementById('jump-modal-message');
+
+        function renderCard() {
+            const data = vocabData[cardIndex];
+            
+            // 1. 短語與核心翻譯
+            cardEnglish.textContent = data.english;
+            cardChineseCore.textContent = data.chinese;
+            
+            // 2. 載入情境內容 (使用懸停翻譯處理)
+            // 對主要例句應用懸停翻譯
+            cardEnglishContext.innerHTML = renderContextWithTooltips(data.englishContext); 
+            cardChineseContext.textContent = data.chineseContext;
+            cardTip.textContent = data.tip;
+
+            // 3. 補充用法
+            let supplementContent = '';
+            if (data.supplement) {
+                supplementContent += `${data.supplement}`;
+                if (data.supplementExample) {
+                    // 對補充例句應用懸停翻譯
+                    const processedExample = renderContextWithTooltips(data.supplementExample); 
+                    supplementContent += `<br><span class="ml-4 block italic text-sm text-blue-600 mt-1">例句: ${processedExample}</span>`;
+                }
+                if (data.supplementExampleChinese) {
+                    supplementContent += `<span class="ml-4 block text-xs text-gray-500">翻譯: ${data.supplementExampleChinese}</span>`;
+                }
+                cardSupplementDetail.classList.remove('hidden');
+            } else {
+                cardSupplementDetail.classList.add('hidden');
+            }
+            cardSupplement.innerHTML = supplementContent;
+
+            cardProgress.textContent = `詞彙卡 ${cardIndex + 1} / ${vocabData.length}`;
+            
+            // 更新跳轉 modal 的最大值
+            jumpInput.max = vocabData.length;
+            jumpModalMessage.textContent = `請輸入編號 (1 到 ${vocabData.length}):`;
+            
+            // 按鈕狀態
+            cardPrevBtn.disabled = cardIndex === 0;
+            cardNextBtn.disabled = cardIndex === vocabData.length - 1;
+        }
+
+        function goToCard(index) {
+            // 檢查輸入是否為有效數字
+            if (isNaN(index) || index === null) {
+                // 不顯示錯誤，直接跳過，因為 modal 已經處理了取消
+                return;
+            }
+
+            // 將編號轉換為索引 (編號 1 对应索引 0)
+            const newIndex = parseInt(index) - 1; 
+            const max = vocabData.length;
+            
+            // 檢查範圍
+            if (newIndex >= 0 && newIndex < max) {
+                cardIndex = newIndex;
+                renderCard();
+                return true; // 跳轉成功
+            } else {
+                // 顯示錯誤訊息 (暫時使用 modal 內的 message 或簡單的方式)
+                jumpModalMessage.textContent = `輸入錯誤！請輸入 1 到 ${max} 之間的有效數字。`;
+                jumpModalMessage.classList.add('text-red-600', 'font-bold');
+                jumpInput.value = '';
+                return false; // 跳轉失敗
+            }
+        }
+        
+        function showJumpModal() {
+            jumpModal.classList.remove('hidden');
+            jumpModalMessage.textContent = `請輸入編號 (1 到 ${vocabData.length}):`;
+            jumpModalMessage.classList.remove('text-red-600', 'font-bold');
+            jumpInput.value = cardIndex + 1; // 預設為當前編號
+            jumpInput.focus();
+        }
+
+        function hideJumpModal() {
+            jumpModal.classList.add('hidden');
+        }
+
+        // --- 事件監聽器 ---
+
+        cardJumpBtn.addEventListener('click', showJumpModal);
+
+        jumpCancel.addEventListener('click', hideJumpModal);
+
+        jumpConfirm.addEventListener('click', () => {
+            const cardNum = jumpInput.value;
+            if (goToCard(cardNum)) {
+                hideJumpModal();
+            }
+        });
+        
+        // 允許按 Enter 鍵確定
+        jumpInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                jumpConfirm.click();
+            }
+        });
+
+
+        cardPrevBtn.addEventListener('click', () => {
+            if (cardIndex > 0) {
+                cardIndex--;
+                renderCard();
+            }
+        });
+
+        cardNextBtn.addEventListener('click', () => {
+            if (cardIndex < vocabData.length - 1) {
+                cardIndex++;
+                renderCard();
+            }
+        });
+        
+        // --- Tooltip 邏輯 (共用) ---
+        let tooltipElement = null;
+
+        function showTooltip(wordElement) {
+            const translation = wordElement.getAttribute('data-translation');
+            if (!translation) return;
+
+            // 移除舊的 tooltip
+            if (tooltipElement) tooltipElement.remove();
+
+            // 創建新的 tooltip
+            tooltipElement = document.createElement('div');
+            tooltipElement.className = 'word-tooltip';
+            tooltipElement.textContent = translation;
+            
+            document.body.appendChild(tooltipElement);
+
+            // 計算位置
+            const rect = wordElement.getBoundingClientRect();
+            const bodyScrollTop = window.scrollY || document.documentElement.scrollTop;
+            
+            // 將 tooltip 放置在單詞上方並水平居中
+            tooltipElement.style.left = (rect.left + rect.width / 2) + 'px';
+            tooltipElement.style.top = (rect.top + bodyScrollTop - 10) + 'px'; 
+
+            tooltipElement.style.opacity = '1';
+        }
+
+        function hideTooltip() {
+            if (tooltipElement) {
+                tooltipElement.style.opacity = '0';
+                setTimeout(() => {
+                    if (tooltipElement) tooltipElement.remove();
+                    tooltipElement = null;
+                }, 200); // 配合 CSS 轉換時間
+            }
+        }
+
+        // 使用事件委派 (Event Delegation) 監聽整個頁面，但只針對 .context-word
+        document.addEventListener('mouseover', (e) => {
+            const target = e.target.closest('.context-word');
+            if (target) {
+                showTooltip(target);
+            }
+        });
+
+        document.addEventListener('mouseout', (e) => {
+            const target = e.target.closest('.context-word');
+            if (target) {
+                if (!target.contains(e.relatedTarget)) {
+                    hideTooltip();
+                }
+            } else {
+                hideTooltip();
+            }
+        });
+        
+        window.addEventListener('scroll', hideTooltip);
+        window.addEventListener('resize', hideTooltip);
+
+
+        // --- 情境測驗模式邏輯 (Quiz) ---
+        let quizLength = 20; // 預設 20 題
+        let quizData = [];
+        let quizIndex = 0;
+        let selectedAnswer = null;
+        let isAnswered = false;
+        let correctCount = 0;
+
+        const quizSettings = document.getElementById('quiz-settings');
+        const quizContent = document.getElementById('quiz-content');
+        const quizLengthOptions = document.querySelectorAll('.quiz-length-btn');
+        const startQuizBtn = document.getElementById('start-quiz-btn');
+        
+        const quizProgress = document.getElementById('quiz-progress');
+        const quizScenario = document.getElementById('quiz-scenario');
+        const quizOptionsContainer = document.getElementById('quiz-options-container');
+        const quizFeedback = document.getElementById('quiz-feedback');
+        const quizNextBtn = document.getElementById('quiz-next-btn');
+        const quizTranslationBox = document.getElementById('quiz-translation-box');
+        const quizScenarioEnglishResult = document.getElementById('quiz-scenario-english-result');
+        const quizScenarioChineseResult = document.getElementById('quiz-scenario-chinese-result');
+
+        // 設置預設選中狀態和按鈕啟用狀態
+        window.onload = () => {
+            renderCard();
+            // 初始化測驗設定
+            quizLengthOptions.forEach(btn => {
+                if (parseInt(btn.getAttribute('data-length')) === 20) {
+                    btn.classList.add('bg-blue-500', 'text-white');
+                    startQuizBtn.disabled = false;
+                }
+            });
+        };
+
+
+        // 題數選擇邏輯
+        quizLengthOptions.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // 移除所有按鈕的 active 狀態
+                quizLengthOptions.forEach(b => {
+                    b.classList.remove('bg-blue-500', 'text-white');
+                    b.classList.add('bg-gray-200', 'text-gray-700');
+                });
+                
+                // 設置點擊按鈕的 active 狀態
+                btn.classList.add('bg-blue-500', 'text-white');
+                btn.classList.remove('bg-gray-200', 'text-gray-700');
+                
+                quizLength = parseInt(btn.getAttribute('data-length'));
+                startQuizBtn.disabled = false;
+                // 更新測驗進度顯示 (在 settings 頁面)
+                quizProgress.textContent = `測驗題 1 / ${quizLength}`;
+            });
+        });
+
+        // 開始測驗按鈕
+        startQuizBtn.addEventListener('click', () => {
+            startQuiz();
+        });
+
+
+        function getChineseTranslation(englishContext) {
+            const vocab = vocabData.find(v => v.englishContext === englishContext);
+            return vocab ? vocab.chineseContext : '無法找到翻譯。';
+        }
+
+        function generateQuizData(n) {
+            const shuffled = [...vocabData].sort(() => 0.5 - Math.random());
+            const questions = [];
+
+            const actualQuizLength = Math.min(n, vocabData.length);
+            const availableQuestions = shuffled.slice(0, actualQuizLength); 
+
+            for (let i = 0; i < availableQuestions.length; i++) {
+                const correctAnswer = availableQuestions[i];
+                
+                let allVocabs = [...vocabData];
+                allVocabs = allVocabs.filter(v => v.english !== correctAnswer.english);
+
+                const randomIncorrect = allVocabs.sort(() => 0.5 - Math.random()).slice(0, 3);
+                
+                let options = [correctAnswer, ...randomIncorrect];
+                options = options.sort(() => 0.5 - Math.random()); 
+
+                questions.push({
+                    scenario: correctAnswer.englishContext,
+                    correctEnglish: correctAnswer.english,
+                    chineseTranslation: correctAnswer.chineseContext,
+                    options: options.map(opt => ({ english: opt.english, isCorrect: opt.english === correctAnswer.english }))
+                });
+            }
+            return questions;
+        }
+
+        function renderQuiz() {
+            if (quizIndex >= quizData.length) {
+                showQuizResult();
+                return;
+            }
+            const currentQuiz = quizData[quizIndex];
+
+            isAnswered = false;
+            selectedAnswer = null;
+            quizFeedback.classList.add('hidden');
+            quizTranslationBox.classList.remove('show');
+            quizNextBtn.disabled = true;
+            quizOptionsContainer.innerHTML = '';
+            
+            quizProgress.textContent = `測驗題 ${quizIndex + 1} / ${quizData.length}`;
+            quizScenario.innerHTML = currentQuiz.scenario;
+
+            currentQuiz.options.forEach((option) => {
+                const div = document.createElement('div');
+                div.className = 'quiz-option bg-white';
+                div.innerHTML = `<span class="option-english">${option.english}</span><span class="option-chinese"></span>`;
+                div.setAttribute('data-english', option.english);
+                div.addEventListener('click', handleAnswer);
+                quizOptionsContainer.appendChild(div);
+            });
+        }
+        
+        function handleAnswer(event) {
+            if (isAnswered) return;
+            isAnswered = true;
+
+            const selectedOptionDiv = event.target.closest('.quiz-option');
+            if (!selectedOptionDiv) return;
+
+            selectedAnswer = selectedOptionDiv.getAttribute('data-english');
+            const currentQuiz = quizData[quizIndex];
+            
+            const isCorrect = selectedAnswer === currentQuiz.correctEnglish;
+            if (isCorrect) {
+                correctCount++;
+            }
+            
+            Array.from(quizOptionsContainer.children).forEach(optionDiv => {
+                const english = optionDiv.getAttribute('data-english');
+                const chinese = getCoreChineseTranslation(english);
+                
+                const chineseSpan = optionDiv.querySelector('.option-chinese');
+                if (chineseSpan) {
+                    chineseSpan.textContent = `(${chinese})`;
+                    chineseSpan.style.opacity = '1';
+                }
+
+                optionDiv.classList.remove('bg-white', 'hover:bg-gray-300');
+                optionDiv.style.cursor = 'default';
+
+                if (english === currentQuiz.correctEnglish) {
+                    optionDiv.classList.add('correct');
+                } else if (english === selectedAnswer) {
+                    optionDiv.classList.add('incorrect');
+                } else {
+                    optionDiv.classList.add('bg-gray-100', 'text-gray-600');
+                }
+            });
+
+            quizFeedback.classList.remove('hidden');
+            if (isCorrect) {
+                quizFeedback.className = 'mt-6 p-3 rounded-lg text-left bg-green-50 text-green-700 font-bold';
+                quizFeedback.innerHTML = '✅ 答對了！情境運用正確。';
+            } else {
+                quizFeedback.className = 'mt-6 p-3 rounded-lg text-left bg-red-50 text-red-700 font-bold';
+                quizFeedback.innerHTML = `❌ 答錯了... **正確答案是：${currentQuiz.correctEnglish}**`;
+            }
+
+            quizScenarioEnglishResult.innerHTML = renderContextWithTooltips(currentQuiz.scenario);
+            quizScenarioChineseResult.textContent = currentQuiz.chineseTranslation;
+            quizTranslationBox.classList.add('show');
+            
+            quizScenario.innerHTML = quizScenarioEnglishResult.innerHTML; 
+
+            quizNextBtn.disabled = false;
+        }
+
+        function showQuizResult() {
+            const score = correctCount;
+
+            quizProgress.textContent = '測驗完成！';
+            quizScenario.textContent = `您總共答對了 ${correctCount} 題！`;
+            quizTranslationBox.classList.remove('show');
+            quizOptionsContainer.innerHTML = `
+                <div class="text-center mt-8 p-6 bg-blue-50 rounded-xl border border-blue-200">
+                    <p class="text-3xl font-extrabold text-blue-600 mb-4">測驗結果</p>
+                    <p class="text-xl text-gray-700">您完成了所有 ${quizData.length} 題情境測驗。</p>
+                    <p class="text-2xl font-bold text-indigo-700 mt-3">總分：${score} / ${quizData.length}</p>
+                    <button onclick="resetQuizSettings()" class="vibe-button bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg mt-6">
+                        重新選擇題數 🔁
+                    </button>
+                </div>
+            `;
+            quizFeedback.classList.add('hidden');
+            quizNextBtn.classList.add('hidden');
+            correctCount = 0;
+        }
+
+        quizNextBtn.addEventListener('click', () => {
+            if (quizData[quizIndex] && selectedAnswer) {
+                quizData[quizIndex].userAnswer = selectedAnswer;
+            }
+            quizIndex++;
+            renderQuiz();
+        });
+
+        function startQuiz() {
+            if (vocabData.length < 4) {
+                quizOptionsContainer.innerHTML = '<p class="text-red-500 font-bold">⚠️ 詞彙量不足 (需至少 4 個)，無法生成有效測驗。請先增加詞彙卡數量。</p>';
+                quizProgress.textContent = '錯誤';
+                quizNextBtn.classList.add('hidden');
+                return;
+            }
+            
+            // 隱藏設定，顯示測驗內容
+            quizSettings.classList.add('hidden');
+            quizContent.classList.remove('hidden');
+
+            quizData = generateQuizData(quizLength);
+            quizIndex = 0;
+            correctCount = 0;
+            quizNextBtn.classList.remove('hidden');
+            renderQuiz();
+        }
+        
+        function resetQuizSettings() {
+            // 顯示設定，隱藏測驗內容
+            quizSettings.classList.remove('hidden');
+            quizContent.classList.add('hidden');
+            // 重置進度顯示
+            quizProgress.textContent = `測驗題 1 / ${quizLength}`;
+        }
+
+    </script>
+</body>
+</html>
